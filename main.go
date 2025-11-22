@@ -1,13 +1,19 @@
 package main
 
 import (
+	"firstRestAPI/database"
+	"firstRestAPI/repository"
 	"firstRestAPI/restHTTP"
 	"firstRestAPI/todo"
 	"fmt"
 )
 
 func main() {
-	todoList := todo.NewList()
+	database.InitDB()
+	defer database.DB.Close()
+
+	repo := repository.NewPostgresRepository()
+	todoList := todo.NewList(repo)
 	httpHandlers := restHTTP.NewHttpHandlers(todoList)
 	httpServer := restHTTP.NewHttpServer(httpHandlers)
 

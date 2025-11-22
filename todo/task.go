@@ -3,6 +3,8 @@ package todo
 import "time"
 
 type Task struct {
+	ID int
+
 	Title       string
 	Description string
 	IsCompleted bool

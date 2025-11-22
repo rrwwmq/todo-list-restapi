@@ -118,7 +118,6 @@ func (h *httpHandlers) HandleGetTask(w http.ResponseWriter, r *http.Request) {
 	b, err := json.MarshalIndent(task, "", "   ")
 	if err != nil {
 		panic(err)
-		return
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -142,11 +141,17 @@ func (h *httpHandlers) HandleGetTask(w http.ResponseWriter, r *http.Request) {
 */
 
 func (h *httpHandlers) HandlerGetAllTasks(w http.ResponseWriter, r *http.Request) {
-	tasks := h.todoList.ListTasks()
+	tasks, err := h.todoList.ListTasks()
+	if err != nil {
+		errDTO := ErrorDTO{
+			Message: err.Error(),
+			Time:    time.Now(),
+		}
+		http.Error(w, errDTO.ToString(), http.StatusInternalServerError)
+	}
 	b, err := json.MarshalIndent(tasks, "", "	")
 	if err != nil {
 		panic(err)
-		return
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -170,11 +175,17 @@ func (h *httpHandlers) HandlerGetAllTasks(w http.ResponseWriter, r *http.Request
 */
 
 func (h *httpHandlers) HandleGetAllUncompletedTasks(w http.ResponseWriter, r *http.Request) {
-	uncompletedTasks := h.todoList.ListUncompletedTasks()
+	uncompletedTasks, err := h.todoList.ListUncompletedTasks()
+	if err != nil {
+		errDTO := ErrorDTO{
+			Message: err.Error(),
+			Time:    time.Now(),
+		}
+		http.Error(w, errDTO.ToString(), http.StatusInternalServerError)
+	}
 	b, err := json.MarshalIndent(uncompletedTasks, "", "    ")
 	if err != nil {
 		panic(err)
-		return
 	}
 
 	w.WriteHeader(http.StatusOK)

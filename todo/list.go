@@ -1,100 +1,56 @@
 package todo
 
-import "sync"
+import (
+	"context"
+)
 
 type List struct {
-	tasks map[string]Task
-	mtx   sync.RWMutex
+	repo TaskRepository
 }
 
-func NewList() *List {
-	return &List{tasks: make(map[string]Task)}
+func NewList(repo TaskRepository) *List {
+	return &List{repo: repo}
 }
 
 func (l *List) AddTask(task Task) error {
-	l.mtx.Lock()
-	defer l.mtx.Unlock()
-	if _, ok := l.tasks[task.Title]; ok {
-		return ErrTaskAlreadyExists
-	}
-
-	l.tasks[task.Title] = task
-
-	return nil
+	return l.repo.AddTask(context.Background(), task)
 }
 
 func (l *List) GetTask(title string) (Task, error) {
-	l.mtx.RLock()
-	defer l.mtx.RUnlock()
-	task, ok := l.tasks[title]
-	if !ok {
-		return Task{}, ErrTaskNotFound
-	}
-
-	return task, nil
+	return l.repo.GetTask(context.Background(), title)
 }
 
-func (l *List) ListTasks() map[string]Task {
-	l.mtx.RLock()
-	defer l.mtx.RUnlock()
-	tmp := make(map[string]Task, len(l.tasks))
-	for k, v := range l.tasks {
-		tmp[k] = v
+func (l *List) ListTasks() ([]Task, error) {
+	tasks, err := l.repo.ListTasks(context.Background())
+	if err != nil {
+		return nil, err
 	}
 
-	return tmp
+	return tasks, nil
 }
 
 func (l *List) CompleteTask(title string) (Task, error) {
-	l.mtx.Lock()
-	defer l.mtx.Unlock()
-	task, ok := l.tasks[title]
-	if !ok {
-		return Task{}, ErrTaskNotFound
+	err := l.repo.CompleteTask(context.Background(), title, true)
+	if err != nil {
+		return Task{}, err
 	}
 
-	task.Complete()
-	l.tasks[title] = task
-
-	return l.tasks[title], nil
+	return l.repo.GetTask(context.Background(), title)
 }
 
 func (l *List) UncompleteTask(title string) (Task, error) {
-	l.mtx.Lock()
-	defer l.mtx.Unlock()
-	task, ok := l.tasks[title]
-	if !ok {
-		return Task{}, ErrTaskNotFound
+	err := l.repo.UnCompleteTask(context.Background(), title, false)
+	if err != nil {
+		return Task{}, err
 	}
 
-	task.UnComplete()
-	l.tasks[title] = task
-	return l.tasks[title], nil
+	return l.repo.GetTask(context.Background(), title)
 }
 
-func (l *List) ListUncompletedTasks() map[string]Task {
-	l.mtx.RLock()
-	defer l.mtx.RUnlock()
-	uncompletedTasks := make(map[string]Task)
-
-	for k, v := range l.tasks {
-		if !v.IsCompleted {
-			uncompletedTasks[k] = v
-		}
-	}
-
-	return uncompletedTasks
+func (l *List) ListUncompletedTasks() ([]Task, error) {
+	return l.repo.ListUncompletedTasks(context.Background())
 }
 
 func (l *List) DeleteTask(title string) error {
-	l.mtx.Lock()
-	defer l.mtx.Unlock()
-	_, ok := l.tasks[title]
-	if !ok {
-		return ErrTaskNotFound
-	}
-
-	delete(l.tasks, title)
-
-	return nil
+	return l.repo.DeleteTask(context.Background(), title)
 }

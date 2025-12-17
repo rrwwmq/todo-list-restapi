@@ -10,9 +10,14 @@ import (
 
 func main() {
 	database.InitDB()
-	defer database.DB.Close()
+	sqlDB, err := database.DB.DB()
+	if err != nil {
+		panic(err)
+	}
 
-	repo := repository.NewPostgresRepository()
+	defer sqlDB.Close()
+
+	repo := repository.NewGormRepository()
 	todoList := todo.NewList(repo)
 	httpHandlers := restHTTP.NewHttpHandlers(todoList)
 	httpServer := restHTTP.NewHttpServer(httpHandlers)

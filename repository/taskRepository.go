@@ -2,143 +2,78 @@ package repository
 
 import (
 	"context"
+	"errors"
+	"time"
+
 	"firstRestAPI/database"
 	"firstRestAPI/todo"
 )
 
-type PostgresRepository struct{}
+var ErrTaskNotFound = errors.New("task not found")
 
-func NewPostgresRepository() *PostgresRepository {
-	return &PostgresRepository{}
+type GormRepository struct{}
+
+func NewGormRepository() *GormRepository {
+	return &GormRepository{}
 }
 
-func (r *PostgresRepository) AddTask(ctx context.Context, t todo.Task) error {
-	_, err := database.DB.Exec(ctx,
-		`INSERT INTO Tasks (title, description)
-		VALUES($1, $2)`,
-		t.Title, t.Description,
-	)
-
-	return err
+func (r *GormRepository) AddTask(ctx context.Context, t todo.Task) error {
+	return database.DB.WithContext(ctx).Create(&t).Error
 }
 
-func (r *PostgresRepository) GetTask(ctx context.Context, title string) (todo.Task, error) {
-	var task todo.Task
-
-	err := database.DB.QueryRow(ctx,
-		`SELECT
-		id,
-		title,
-		description,
-		is_completed,
-		created_at,
-		completed_at
-	FROM Tasks
-	WHERE title=$1`, title).Scan(&task.ID, &task.Title, &task.Description, &task.IsCompleted, &task.CreatedAt, &task.CompletedAt)
-
+func (r *GormRepository) GetTask(ctx context.Context, title string) (todo.Task, error) {
+	var t todo.Task
+	err := database.DB.WithContext(ctx).Where("title = ?", title).First(&t).Error
 	if err != nil {
-		return todo.Task{}, todo.ErrTaskNotFound
+		return todo.Task{}, ErrTaskNotFound
 	}
-
-	return task, nil
+	return t, nil
 }
 
-func (r *PostgresRepository) ListTasks(ctx context.Context) ([]todo.Task, error) {
-	rows, err := database.DB.Query(ctx,
-		`SELECT
-		id,
-		title,
-		description,
-		is_completed,
-		created_at,
-		completed_at
-	FROM Tasks
-	`)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer rows.Close()
-
+func (r *GormRepository) ListTasks(ctx context.Context) ([]todo.Task, error) {
 	var tasks []todo.Task
-
-	for rows.Next() {
-		var t todo.Task
-		if err := rows.Scan(&t.ID, &t.Title, &t.Description, &t.IsCompleted, &t.CreatedAt, &t.CompletedAt); err != nil {
-			return nil, err
-		}
-		tasks = append(tasks, t)
-	}
-
-	return tasks, nil
+	err := database.DB.WithContext(ctx).Find(&tasks).Error
+	return tasks, err
 }
 
-func (r *PostgresRepository) CompleteTask(ctx context.Context, title string, completed bool) error {
-	_, err := database.DB.Exec(ctx,
-		`UPDATE Tasks
-	SET is_completed = $1, completed_at = NOW()
-	WHERE title = $2`, completed, title)
-
-	if err != nil {
-		return err
+func (r *GormRepository) CompleteTask(ctx context.Context, title string, completed bool) error {
+	var completedAt *time.Time
+	if completed {
+		now := time.Now()
+		completedAt = &now
 	}
-
-	return nil
+	return database.DB.WithContext(ctx).Model(&todo.Task{}).
+		Where("title = ?", title).
+		Updates(map[string]interface{}{
+			"is_completed": completed,
+			"completed_at": completedAt,
+		}).Error
 }
 
-func (r *PostgresRepository) UnCompleteTask(ctx context.Context, title string, completed bool) error {
-	_, err := database.DB.Exec(ctx,
-		`UPDATE Tasks
-	SET is_completed = $1, completed_at = NULL
-	WHERE title = $2`, completed, title)
-
-	if err != nil {
-		return err
+func (r *GormRepository) UnCompleteTask(ctx context.Context, title string, completed bool) error {
+	var completedAt *time.Time
+	if !completed {
+		completedAt = nil
 	}
-
-	return nil
+	return database.DB.WithContext(ctx).Model(&todo.Task{}).
+		Where("title = ?", title).
+		Updates(map[string]interface{}{
+			"is_completed": completed,
+			"completed_at": completedAt,
+		}).Error
 }
 
-func (r *PostgresRepository) ListUncompletedTasks(ctx context.Context) ([]todo.Task, error) {
-	rows, err := database.DB.Query(ctx,
-		`SELECT
-		id,
-		title,
-		description,
-		is_completed,
-		created_at,
-		completed_at
-	FROM Tasks
-	WHERE is_completed = FALSE
-	ORDER BY created_at DESC`)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer rows.Close()
-
+func (r *GormRepository) ListUncompletedTasks(ctx context.Context) ([]todo.Task, error) {
 	var tasks []todo.Task
-	for rows.Next() {
-		var t todo.Task
-		if err := rows.Scan(&t.ID, &t.Title, &t.Description, &t.IsCompleted, &t.CreatedAt, &t.CompletedAt); err != nil {
-			return nil, err
-		}
-
-		tasks = append(tasks, t)
-	}
-
-	return tasks, nil
+	err := database.DB.WithContext(ctx).
+		Where("is_completed = ?", false).
+		Order("created_at desc").
+		Find(&tasks).Error
+	return tasks, err
 }
 
-func (r *PostgresRepository) DeleteTask(ctx context.Context, title string) error {
-	_, err := database.DB.Exec(ctx,
-		`DELETE FROM Tasks WHERE title = $1`, title)
-
-	if err != nil {
-		return err
-	}
-
-	return nil
+func (r *GormRepository) DeleteTask(ctx context.Context, title string) error {
+	return database.DB.WithContext(ctx).
+		Where("title = ?", title).
+		Delete(&todo.Task{}).Error
 }

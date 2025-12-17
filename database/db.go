@@ -1,43 +1,31 @@
 package database
 
 import (
-	"context"
+	"firstRestAPI/todo"
 	"fmt"
-	"log"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
-var DB *pgxpool.Pool
+var DB *gorm.DB
 
 func InitDB() {
-	dsn := "postgres://postgres:todo_pass@localhost:5432/todo?sslmode=disable"
-	pool, err := pgxpool.New(context.Background(), dsn)
+	dsn := "host=localhost user=postgres password=todo_pass dbname=todo port=5432 sslmode=disable"
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Info),
+	})
 	if err != nil {
-		log.Fatal("Unable to connect to database", err)
+		fmt.Println("failed to connect database", err)
+		return
 	}
 
-	DB = pool
-	fmt.Println("connected")
-
-	createTable()
-}
-
-func createTable() {
-	query := `
-	CREATE TABLE IF NOT EXISTS Tasks (
-		id SERIAL PRIMARY KEY,
-		title VARCHAR(255) NOT NULL,
-		description TEXT,
-		is_completed BOOLEAN NOT NULL DEFAULT FALSE,
-		created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-		completed_at TIMESTAMP
-	);
-	`
-
-	if _, err := DB.Exec(context.Background(), query); err != nil {
-		log.Fatal("failed to create table:", err)
+	err = db.AutoMigrate(&todo.Task{})
+	if err != nil {
+		fmt.Println(err)
+		return
 	}
 
-	fmt.Println("table 'todos' is ready")
+	DB = db
 }
